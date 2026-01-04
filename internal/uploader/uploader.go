@@ -274,15 +274,18 @@ func generateS3Key(filename string) (string, error) {
 	nameWithoutExt := strings.TrimSuffix(filename, ".jsonl")
 
 	// Parse filename: platform_channel_YYYYMMDD_HHMM
+	// Channel names may contain underscores, so parse from the end
 	parts := strings.Split(nameWithoutExt, "_")
 	if len(parts) < 4 {
 		return "", fmt.Errorf("invalid filename format: %s", filename)
 	}
 
 	platform := parts[0]
-	channel := parts[1]
-	dateStr := parts[2]  // YYYYMMDD
-	timeStr := parts[3]  // HHMM
+	// The last two parts are always date and time
+	dateStr := parts[len(parts)-2]  // YYYYMMDD
+	timeStr := parts[len(parts)-1]  // HHMM
+	// Everything in between is the channel name
+	channel := strings.Join(parts[1:len(parts)-2], "_")
 
 	// Parse date
 	timestamp := dateStr + "_" + timeStr
