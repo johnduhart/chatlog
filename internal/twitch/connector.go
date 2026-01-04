@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gempir/go-twitch-irc/v4"
+	"github.com/john/chatlog/internal/message"
 )
 
 // Message represents a Twitch chat message
@@ -37,7 +38,7 @@ func New(username, oauth string, channels []string) *Connector {
 }
 
 // Start begins listening to Twitch chat
-func (c *Connector) Start(ctx context.Context, messageChan chan<- Message) error {
+func (c *Connector) Start(ctx context.Context, messageChan chan<- message.Message) error {
 	// Create Twitch IRC client
 	c.client = twitch.NewClient(c.username, c.oauth)
 
@@ -46,7 +47,8 @@ func (c *Connector) Start(ctx context.Context, messageChan chan<- Message) error
 		// Convert to our Message format
 		badges := formatBadges(msg.User.Badges)
 
-		message := Message{
+		chatMessage := message.Message{
+			Platform:  "twitch",
 			Timestamp: time.Now().UTC().Format(time.RFC3339),
 			Channel:   strings.TrimPrefix(msg.Channel, "#"),
 			Username:  msg.User.DisplayName,
@@ -57,7 +59,7 @@ func (c *Connector) Start(ctx context.Context, messageChan chan<- Message) error
 
 		// Send to message channel
 		select {
-		case messageChan <- message:
+		case messageChan <- chatMessage:
 		case <-ctx.Done():
 			return
 		}

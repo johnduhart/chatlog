@@ -12,6 +12,8 @@ import (
 
 	"github.com/john/chatlog/internal/config"
 	"github.com/john/chatlog/internal/health"
+	"github.com/john/chatlog/internal/kick"
+	"github.com/john/chatlog/internal/message"
 	"github.com/john/chatlog/internal/recorder"
 	"github.com/john/chatlog/internal/twitch"
 	"github.com/john/chatlog/internal/uploader"
@@ -32,7 +34,14 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 	log.Printf("Configuration loaded successfully")
-	log.Printf("Monitoring %d Twitch channels: %v", len(cfg.Twitch.Channels), cfg.Twitch.Channels)
+
+	// Log configured platforms
+	if len(cfg.Twitch.Channels) > 0 {
+		log.Printf("Monitoring %d Twitch channels: %v", len(cfg.Twitch.Channels), cfg.Twitch.Channels)
+	}
+	if cfg.Kick.Enabled && len(cfg.Kick.Channels) > 0 {
+		log.Printf("Monitoring %d Kick channels: %v", len(cfg.Kick.Channels), cfg.Kick.Channels)
+	}
 
 	// Setup context and signal handling
 	ctx, cancel := context.WithCancel(context.Background())
@@ -42,11 +51,19 @@ func main() {
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
 	// Create communication channels
-	messageChan := make(chan twitch.Message, cfg.Recorder.BufferSize)
+	messageChan := make(chan message.Message, cfg.Recorder.BufferSize)
 	fileChan := make(chan string, 100)
 
-	// Initialize components
-	twitchConn := twitch.New(cfg.Twitch.Username, cfg.Twitch.OAuth, cfg.Twitch.Channels)
+	// Initialize platform connectors
+	var twitchConn *twitch.Connector
+	if len(cfg.Twitch.Channels) > 0 {
+		twitchConn = twitch.New(cfg.Twitch.Username, cfg.Twitch.OAuth, cfg.Twitch.Channels)
+	}
+
+	var kickConn *kick.Connector
+	if cfg.Kick.Enabled && len(cfg.Kick.Channels) > 0 {
+		kickConn = kick.New(cfg.Kick.Channels)
+	}
 
 	rec := recorder.New(
 		cfg.Recorder.OutputDir,
@@ -95,14 +112,27 @@ func main() {
 	// Start all components
 	var wg sync.WaitGroup
 
-	// Start Twitch connector
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		if err := twitchConn.Start(ctx, messageChan); err != nil && err != context.Canceled {
-			log.Printf("Twitch connector error: %v", err)
-		}
-	}()
+	// Start Twitch connector (if configured)
+	if twitchConn != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := twitchConn.Start(ctx, messageChan); err != nil && err != context.Canceled {
+				log.Printf("Twitch connector error: %v", err)
+			}
+		}()
+	}
+
+	// Start Kick connector (if configured)
+	if kickConn != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := kickConn.Start(ctx, messageChan); err != nil && err != context.Canceled {
+				log.Printf("Kick connector error: %v", err)
+			}
+		}()
+	}
 
 	// Start recorder
 	wg.Add(1)

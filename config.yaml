@@ -13,6 +13,16 @@ twitch:
     - alluux
     - helloneptune
 
+kick:
+  # Enable Kick chat archival
+  enabled: false
+
+  # List of Kick channels to monitor (channel slugs)
+  channels: []
+    # - xqc
+    # - kaicentat
+    # - asmongold
+
 s3:
   # S3 bucket name
   bucket: chatlog-archive

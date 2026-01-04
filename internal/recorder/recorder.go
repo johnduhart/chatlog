@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/john/chatlog/internal/twitch"
+	"github.com/john/chatlog/internal/message"
 )
 
 // fileWriter manages a single JSONL file
@@ -20,7 +20,7 @@ type fileWriter struct {
 	writer        *bufio.Writer
 	createdAt     time.Time
 	bytesWritten  int64
-	messageBuffer []twitch.Message
+	messageBuffer []message.Message
 	platform      string
 	channel       string
 	filename      string
@@ -49,7 +49,7 @@ func New(outputDir string, bufferSize, rotateMinutes, rotateMegabytes int) *Reco
 }
 
 // Start begins recording messages
-func (r *Recorder) Start(ctx context.Context, messageChan <-chan twitch.Message, fileChan chan<- string) error {
+func (r *Recorder) Start(ctx context.Context, messageChan <-chan message.Message, fileChan chan<- string) error {
 	// Create output directory
 	if err := os.MkdirAll(r.outputDir, 0755); err != nil {
 		return fmt.Errorf("create output directory: %w", err)
@@ -78,17 +78,17 @@ func (r *Recorder) Start(ctx context.Context, messageChan <-chan twitch.Message,
 }
 
 // recordMessage records a single message
-func (r *Recorder) recordMessage(msg twitch.Message) error {
+func (r *Recorder) recordMessage(msg message.Message) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	key := fmt.Sprintf("twitch_%s", msg.Channel)
+	key := fmt.Sprintf("%s_%s", msg.Platform, msg.Channel)
 	fw := r.currentFiles[key]
 
 	// Create new file writer if needed
 	if fw == nil {
 		var err error
-		fw, err = r.createFileWriter("twitch", msg.Channel)
+		fw, err = r.createFileWriter(msg.Platform, msg.Channel)
 		if err != nil {
 			return fmt.Errorf("create file writer: %w", err)
 		}
@@ -126,7 +126,7 @@ func (r *Recorder) createFileWriter(platform, channel string) (*fileWriter, erro
 		writer:        bufio.NewWriter(file),
 		createdAt:     time.Now(),
 		bytesWritten:  0,
-		messageBuffer: make([]twitch.Message, 0, r.bufferSize),
+		messageBuffer: make([]message.Message, 0, r.bufferSize),
 		platform:      platform,
 		channel:       channel,
 		filename:      filename,

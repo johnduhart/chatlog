@@ -10,6 +10,7 @@ import (
 // Config holds the application configuration
 type Config struct {
 	Twitch   TwitchConfig   `yaml:"twitch"`
+	Kick     KickConfig     `yaml:"kick"`
 	S3       S3Config       `yaml:"s3"`
 	Recorder RecorderConfig `yaml:"recorder"`
 	Uploader UploaderConfig `yaml:"uploader"`
@@ -19,6 +20,12 @@ type Config struct {
 type TwitchConfig struct {
 	Username string   `yaml:"username"`
 	OAuth    string   `yaml:"oauth"`
+	Channels []string `yaml:"channels"`
+}
+
+// KickConfig holds Kick-specific configuration
+type KickConfig struct {
+	Enabled  bool     `yaml:"enabled"`
 	Channels []string `yaml:"channels"`
 }
 
@@ -98,14 +105,23 @@ func Load(path string) (*Config, error) {
 	// (YAML zero value for bool is false, so we can't detect if it was intentionally set)
 
 	// Validate required fields
-	if cfg.Twitch.Username == "" {
-		return nil, fmt.Errorf("twitch.username is required")
+	// Validate Twitch configuration if channels are specified
+	if len(cfg.Twitch.Channels) > 0 {
+		if cfg.Twitch.Username == "" {
+			return nil, fmt.Errorf("twitch.username is required when twitch channels are configured")
+		}
+		if cfg.Twitch.OAuth == "" {
+			return nil, fmt.Errorf("twitch.oauth is required when twitch channels are configured (or set TWITCH_OAUTH env var)")
+		}
 	}
-	if cfg.Twitch.OAuth == "" {
-		return nil, fmt.Errorf("twitch.oauth is required (or set TWITCH_OAUTH env var)")
+
+	// Require at least one platform with channels
+	totalChannels := len(cfg.Twitch.Channels)
+	if cfg.Kick.Enabled {
+		totalChannels += len(cfg.Kick.Channels)
 	}
-	if len(cfg.Twitch.Channels) == 0 {
-		return nil, fmt.Errorf("at least one twitch channel is required")
+	if totalChannels == 0 {
+		return nil, fmt.Errorf("at least one channel is required (twitch or kick)")
 	}
 	if cfg.S3.Bucket == "" {
 		return nil, fmt.Errorf("s3.bucket is required")
