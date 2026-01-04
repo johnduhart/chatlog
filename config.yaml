@@ -1,0 +1,40 @@
+# Production configuration file for chatlog
+# Secrets are provided via Fly.io secrets (environment variables)
+
+twitch:
+  # Twitch bot username - CUSTOMIZE THIS
+  username: chatlog_bot
+
+  # List of channels to monitor
+  channels:
+    - ludwig
+    - caseoh_
+    - paymoneywubby
+    - alluux
+    - helloneptune
+
+s3:
+  # S3 bucket name
+  bucket: chatlog-archive
+
+  # AWS region
+  region: us-east-1
+
+recorder:
+  # Directory for temporary log files before upload
+  output_dir: /app/data
+
+  # File rotation settings
+  rotate_minutes: 60
+  rotate_megabytes: 100
+  buffer_size: 100
+
+uploader:
+  # Check for files to upload every N seconds
+  check_interval_seconds: 60
+
+  # Delete local files after successful upload
+  delete_after_upload: true
+
+  # Number of upload retries
+  max_retries: 3
