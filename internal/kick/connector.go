@@ -24,16 +24,22 @@ type KickChannelResponse struct {
 	} `json:"chatroom"`
 }
 
+// ChannelConfig represents a Kick channel with optional pre-configured chatroom ID
+type ChannelConfig struct {
+	Slug       string
+	ChatroomID int // 0 means not pre-configured, needs resolution
+}
+
 // Connector manages Kick chat connections
 type Connector struct {
-	channels   []string
-	channelIDs map[string]int    // channel slug -> chatroom ID
-	idToSlug   map[int]string    // chatroom ID -> channel slug (for reverse lookup)
+	channels   []ChannelConfig
+	channelIDs map[string]int // channel slug -> chatroom ID
+	idToSlug   map[int]string // chatroom ID -> channel slug (for reverse lookup)
 	client     *kickchat.Client
 }
 
 // New creates a new Kick connector
-func New(channels []string) *Connector {
+func New(channels []ChannelConfig) *Connector {
 	return &Connector{
 		channels:   channels,
 		channelIDs: make(map[string]int),
@@ -45,15 +51,28 @@ func New(channels []string) *Connector {
 func (c *Connector) Start(ctx context.Context, messageChan chan<- message.Message) error {
 	// Step 1: Resolve all channel names to chatroom IDs
 	log.Println("Resolving Kick channel IDs...")
-	for _, channelName := range c.channels {
-		chatroomID, slug, err := c.resolveChannelID(channelName)
-		if err != nil {
-			log.Printf("Warning: Failed to resolve Kick channel '%s': %v (skipping)", channelName, err)
-			continue
+	for _, channel := range c.channels {
+		var chatroomID int
+		var slug string
+		var err error
+
+		if channel.ChatroomID > 0 {
+			// Use pre-configured chatroom ID
+			chatroomID = channel.ChatroomID
+			slug = channel.Slug
+			log.Printf("Using pre-configured Kick channel: %s -> ID %d", slug, chatroomID)
+		} else {
+			// Need to resolve via API
+			chatroomID, slug, err = c.resolveChannelID(channel.Slug)
+			if err != nil {
+				log.Printf("Warning: Failed to resolve Kick channel '%s': %v (skipping)", channel.Slug, err)
+				continue
+			}
+			log.Printf("Resolved Kick channel: %s -> ID %d", slug, chatroomID)
 		}
+
 		c.channelIDs[slug] = chatroomID
 		c.idToSlug[chatroomID] = slug
-		log.Printf("Resolved Kick channel: %s -> ID %d", slug, chatroomID)
 	}
 
 	if len(c.channelIDs) == 0 {
@@ -126,13 +145,25 @@ func (c *Connector) Start(ctx context.Context, messageChan chan<- message.Messag
 func (c *Connector) resolveChannelID(channelName string) (int, string, error) {
 	url := fmt.Sprintf("https://kick.com/api/v2/channels/%s", channelName)
 
-	// Create request with User-Agent to avoid CloudFlare blocking
+	// Create request with headers to bypass CloudFlare blocking
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return 0, "", fmt.Errorf("failed to create request: %w", err)
 	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+
+	// Set comprehensive browser headers to appear more legitimate
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36")
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	req.Header.Set("Accept-Encoding", "gzip, deflate, br")
+	req.Header.Set("Referer", "https://kick.com/")
+	req.Header.Set("Origin", "https://kick.com")
+	req.Header.Set("Sec-Fetch-Dest", "empty")
+	req.Header.Set("Sec-Fetch-Mode", "cors")
+	req.Header.Set("Sec-Fetch-Site", "same-origin")
+	req.Header.Set("sec-ch-ua", `"Chromium";v="143", "Not.A/Brand";v="24", "Google Chrome";v="143"`)
+	req.Header.Set("sec-ch-ua-mobile", "?0")
+	req.Header.Set("sec-ch-ua-platform", `"Windows"`)
 
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)

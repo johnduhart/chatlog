@@ -62,7 +62,15 @@ func main() {
 
 	var kickConn *kick.Connector
 	if cfg.Kick.Enabled && len(cfg.Kick.Channels) > 0 {
-		kickConn = kick.New(cfg.Kick.Channels)
+		// Convert config channels to kick.ChannelConfig
+		kickChannels := make([]kick.ChannelConfig, len(cfg.Kick.Channels))
+		for i, ch := range cfg.Kick.Channels {
+			kickChannels[i] = kick.ChannelConfig{
+				Slug:       ch.Slug,
+				ChatroomID: ch.ChatroomID,
+			}
+		}
+		kickConn = kick.New(kickChannels)
 	}
 
 	rec := recorder.New(

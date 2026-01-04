@@ -15,13 +15,13 @@ twitch:
 
 kick:
   # Enable Kick chat archival
-  enabled: false
+  enabled: true
 
-  # List of Kick channels to monitor (channel slugs)
-  channels: []
-    # - xqc
-    # - kaicentat
-    # - asmongold
+  # List of Kick channels to monitor
+  # Use tools/resolve-kick-channels to get chatroom_id for new channels
+  channels:
+    - slug: paymoneywubby
+      chatroom_id: 55611130
 
 s3:
   # S3 bucket name

@@ -25,8 +25,14 @@ type TwitchConfig struct {
 
 // KickConfig holds Kick-specific configuration
 type KickConfig struct {
-	Enabled  bool     `yaml:"enabled"`
-	Channels []string `yaml:"channels"`
+	Enabled  bool           `yaml:"enabled"`
+	Channels []KickChannel  `yaml:"channels"`
+}
+
+// KickChannel represents a Kick channel configuration
+type KickChannel struct {
+	Slug       string `yaml:"slug"`
+	ChatroomID int    `yaml:"chatroom_id,omitempty"`
 }
 
 // S3Config holds S3 upload configuration
